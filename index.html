@@ -153,7 +153,7 @@ document.documentElement.lang = 'ru';
 function parse(){ try{ return JSON.parse(document.getElementById('data').textContent); }catch(e){ return {products:[]}; } }
 var state = parse();
 if(!state.products) state.products = [];
-var SAVED = JSON.stringify(state), PW = '';
+var SAVED = JSON.stringify(state), PW = '', LG = '';
 var editing = false, canEdit = false;
 var personBlob = null, garmentBlob = null, garmentUrl = '';
 
@@ -316,24 +316,24 @@ function shrink(file){
 function find(id){ return state.products.filter(function(p){return p.id===id;})[0]; }
 function askPw(){
  var o = document.createElement('div'); o.className = 'pwo';
- o.innerHTML = '<form class="pwf"><b>Вход для хозяйки</b><input id="pwi" type="password" placeholder="Пароль" autocomplete="current-password"><div class="g"><button class="btn ghost" type="button" data-x="1">Отмена</button><button class="btn" type="submit">Войти</button></div></form>';
+ o.innerHTML = '<form class="pwf"><b>Вход для хозяйки</b><input id="lgi" type="text" placeholder="Логин" autocomplete="username" autocapitalize="none" autocorrect="off"><input id="pwi" type="password" placeholder="Пароль" autocomplete="current-password"><div class="g"><button class="btn ghost" type="button" data-x="1">Отмена</button><button class="btn" type="submit">Войти</button></div></form>';
  document.body.appendChild(o);
- var f = o.querySelector('form'), inp = o.querySelector('input');
- inp.focus();
+ var f = o.querySelector('form'), lin = o.querySelector('#lgi'), inp = o.querySelector('#pwi');
+ lin.focus();
  o.querySelector('[data-x]').addEventListener('click', function(){ o.remove(); });
  f.addEventListener('submit', async function(e){
-  e.preventDefault(); var pw = inp.value;
+  e.preventDefault(); var pw = inp.value, lg = lin.value.trim();
   try{
-   var r = await fetch('/api/login', {method:'POST', headers:{'x-admin-password':pw}});
-   if(r.ok){ PW = pw; canEdit = true; editing = true; try{ localStorage.setItem('mbpw', pw); }catch(x){} o.remove(); renderAll(); document.getElementById('new').scrollIntoView(); }
-   else toast('Неверный пароль');
+   var r = await fetch('/api/login', {method:'POST', headers:{'x-admin-login':encodeURIComponent(lg),'x-admin-password':encodeURIComponent(pw)}});
+   if(r.ok){ PW = pw; LG = lg; canEdit = true; editing = true; try{ localStorage.setItem('mbpw', pw); localStorage.setItem('mblg', lg); }catch(x){} o.remove(); renderAll(); document.getElementById('new').scrollIntoView(); }
+   else toast('Неверный логин или пароль');
   }catch(err){ toast('Нет связи. Попробуйте ещё раз.'); }
  });
 }
 async function save(){
  try{
   toast('Сохраняем…');
-  var r = await fetch('/api/products', {method:'POST', headers:{'content-type':'application/json','x-admin-password':PW}, body:JSON.stringify(state)});
+  var r = await fetch('/api/products', {method:'POST', headers:{'content-type':'application/json','x-admin-login':encodeURIComponent(LG),'x-admin-password':encodeURIComponent(PW)}, body:JSON.stringify(state)});
   if(r.status===403){ canEdit = false; editing = false; renderAll(); toast('Нужно войти заново'); return; }
   if(!r.ok) throw new Error('bad');
   SAVED = JSON.stringify(state); editing = false; renderAll(); toast('Сохранено. Сайт обновлён');
@@ -375,7 +375,7 @@ document.addEventListener('change', async function(e){
 
 /* Помощник хозяйки */
 var FAQ = [
- {q:'Как войти в редактирование?', a:'Прокрутите страницу в самый низ, нажмите «Вход для хозяйки» и введите пароль. Сайт сразу откроется для редактирования.'},
+ {q:'Как войти в редактирование?', a:'Прокрутите страницу в самый низ, нажмите «Вход для хозяйки» и введите логин и пароль. Сайт сразу откроется для редактирования.'},
  {q:'Как добавить товар?', a:'В нужном разделе нажмите «Добавить товар». Впишите название, цену цифрами и размеры. Потом добавьте фото и нажмите «Сохранить на сайте» внизу.'},
  {q:'Как загрузить фото?', a:'В карточке нажмите «Добавить фото» и выберите снимок из галереи. Когда появится сообщение «Фото добавлено», нажмите «Сохранить на сайте». Если окно выбора не открывается, напишите тому, кто делал сайт.'},
  {q:'Как сохранить?', a:'Нажмите «Сохранить на сайте» внизу экрана. Пока вы не нажали, изменения видны только вам. Появится сообщение «Сохранено».'},
@@ -411,10 +411,10 @@ $('hf').hidden = true;
   if(r.ok){ var j = await r.json(); if(j && j.products){ state = j; SAVED = JSON.stringify(state); renderAll(); } }
  }catch(e){}
  try{
-  var pw = localStorage.getItem('mbpw');
-  if(pw){
-   var l = await fetch('/api/login', {method:'POST', headers:{'x-admin-password':pw}});
-   if(l.ok){ PW = pw; canEdit = true; renderAll(); } else { localStorage.removeItem('mbpw'); }
+  var pw = localStorage.getItem('mbpw'), lg = localStorage.getItem('mblg');
+  if(pw && lg){
+   var l = await fetch('/api/login', {method:'POST', headers:{'x-admin-login':encodeURIComponent(lg),'x-admin-password':encodeURIComponent(pw)}});
+   if(l.ok){ PW = pw; LG = lg; canEdit = true; renderAll(); } else { localStorage.removeItem('mbpw'); localStorage.removeItem('mblg'); }
   }
  }catch(e){}
 })();
